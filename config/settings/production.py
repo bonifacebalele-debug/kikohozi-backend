@@ -1,0 +1,26 @@
+from .base import *  # noqa: F401, F403
+import environ
+
+env = environ.Env()
+
+DEBUG = False
+
+DATABASES = {
+    "default": env.db("DATABASE_URL")
+}
+
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOW_CREDENTIALS = True
+
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+SESSION_COOKIE_SECURE = True
+SESSION_COOKIE_SAMESITE = "None"
+
+CSRF_COOKIE_SECURE = True
+
+STATIC_ROOT = BASE_DIR / "staticfiles"  # noqa: F405
