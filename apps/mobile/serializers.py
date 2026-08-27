@@ -133,6 +133,7 @@ class CoughRecordingSyncSerializer(serializers.Serializer):
     community_event_name = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
     device_used = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    recorded_by = serializers.CharField(max_length=150, required=False, allow_blank=True)
     audio_file = serializers.FileField()
 
     checklist_count_1_to_10_done = serializers.BooleanField(required=False, default=False)

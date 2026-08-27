@@ -1,4 +1,7 @@
+import hashlib
 import logging
+import wave
+
 from django.db import transaction, IntegrityError
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -73,6 +76,36 @@ def _clinical_data_response(clinical_data):
             },
         },
     }
+
+
+def _audio_qc_metadata(audio_file):
+    """
+    Derive integrity/QC metadata from an uploaded audio file.
+
+    Returns (checksum_sha256, duration_seconds, channels). Duration and channels
+    are None when the file can't be parsed as a WAV. The file pointer is rewound
+    to the start before returning so the caller can still save it.
+    """
+    audio_file.seek(0)
+    digest = hashlib.sha256()
+    for chunk in audio_file.chunks():
+        digest.update(chunk)
+    checksum = digest.hexdigest()
+
+    duration = None
+    channels = None
+    audio_file.seek(0)
+    try:
+        with wave.open(audio_file, "rb") as wav:
+            channels = wav.getnchannels()
+            frame_rate = wav.getframerate()
+            if frame_rate:
+                duration = round(wav.getnframes() / float(frame_rate), 3)
+    except (wave.Error, EOFError):
+        pass
+    audio_file.seek(0)
+
+    return checksum, duration, channels
 
 
 def _generate_participant_id(participant):
@@ -282,6 +315,7 @@ class SyncCoughRecordingView(APIView):
         participant_server_id = data.pop("participant_server_id", None)
         participant_id_str = data.pop("participant_id", None)
         audio_file = data.pop("audio_file")
+        checksum, duration, channels = _audio_qc_metadata(audio_file)
 
         existing = CoughRecording.objects.filter(local_uuid=local_uuid).first()
         if existing:
@@ -324,6 +358,9 @@ class SyncCoughRecordingView(APIView):
                     audio_file=audio_file,
                     audio_file_name=audio_file.name,
                     audio_file_size_bytes=audio_file.size,
+                    checksum_sha256=checksum,
+                    audio_duration_seconds=duration,
+                    audio_channels=channels,
                     **data,
                 )
         except IntegrityError:

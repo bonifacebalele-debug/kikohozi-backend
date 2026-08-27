@@ -93,10 +93,14 @@ class ClinicalDataAdmin(admin.ModelAdmin):
 class CoughRecordingAdmin(admin.ModelAdmin):
     list_display = (
         "pk", "participant", "patient_type", "timepoint",
-        "sample_number", "cough_date", "qc_status", "synced_by",
+        "sample_number", "cough_date", "qc_status", "audio_quality_label", "synced_by",
     )
-    list_filter = ("patient_type", "timepoint", "qc_status", "setting")
-    search_fields = ("local_uuid", "participant__generated_participant_id")
+    list_filter = ("patient_type", "timepoint", "qc_status", "audio_quality_label", "setting")
+    search_fields = (
+        "local_uuid", "participant__generated_participant_id", "checksum_sha256",
+    )
     readonly_fields = (
-        "local_uuid", "audio_file_name", "audio_file_size_bytes", "created_at", "updated_at",
+        "local_uuid", "audio_file_name", "audio_file_size_bytes",
+        "checksum_sha256", "audio_duration_seconds", "audio_channels",
+        "created_at", "updated_at",
     )

@@ -1,4 +1,5 @@
 """Tests for cough-recording sync: multipart upload that depends on a synced participant."""
+import hashlib
 import shutil
 import tempfile
 
@@ -58,6 +59,25 @@ class CoughRecordingSyncTests(AuthenticatedAPITestCase):
         self.assertEqual(recording.audio_file_size_bytes, len(WAV_BYTES))
         self.assertEqual(recording.synced_by, self.user)
         self.assertTrue(recording.audio_file.name.endswith(".wav"))
+
+    def test_computes_audio_qc_metadata(self):
+        participant = self._create_participant()
+        payload = cough_recording_payload(
+            participant_server_id=participant["server_id"],
+            audio_file=wav_file(),
+            recorded_by="Field Worker",
+        )
+        response = self.client.post(URL, payload, format="multipart")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        recording = CoughRecording.objects.get(local_uuid=payload["local_uuid"])
+        self.assertEqual(
+            recording.checksum_sha256, hashlib.sha256(WAV_BYTES).hexdigest()
+        )
+        self.assertEqual(recording.audio_channels, 1)
+        self.assertEqual(recording.audio_duration_seconds, 0.0)
+        self.assertEqual(recording.recorded_by, "Field Worker")
+        self.assertEqual(recording.qc_status, "PENDING")
 
     def test_uploads_recording_by_generated_participant_id(self):
         participant = self._create_participant()

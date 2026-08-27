@@ -207,6 +207,19 @@ class CoughRecording(models.Model):
     qc_status = models.CharField(max_length=20, default="PENDING")
     qc_notes = models.TextField(blank=True)
 
+    # --- audio-QC metadata ---
+    # checksum / duration / channels are computed server-side from the upload.
+    # quality_* and qc_reviewed_* are set later by a human during QC review.
+    checksum_sha256 = models.CharField(max_length=64, blank=True, null=True)
+    audio_duration_seconds = models.FloatField(blank=True, null=True)
+    audio_channels = models.IntegerField(blank=True, null=True)
+    audio_quality_score = models.FloatField(blank=True, null=True)
+    audio_quality_label = models.CharField(max_length=20, blank=True, null=True)
+    qc_reason = models.TextField(blank=True, null=True)
+    qc_reviewed_by = models.CharField(max_length=150, blank=True, null=True)
+    qc_reviewed_at = models.DateTimeField(blank=True, null=True)
+    recorded_by = models.CharField(max_length=150, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
