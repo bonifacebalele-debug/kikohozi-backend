@@ -2,6 +2,10 @@ from django.db import models
 from django.conf import settings
 
 
+def consent_form_upload_path(instance, filename):
+    return f"consent_forms/{instance.pk}/{filename}"
+
+
 class Participant(models.Model):
     local_uuid = models.CharField(max_length=36, unique=True, db_index=True)
     generated_participant_id = models.CharField(max_length=50, unique=True, blank=True)
@@ -48,6 +52,11 @@ class Participant(models.Model):
 
     family_history_of_asthma = models.CharField(max_length=10, blank=True)
     asthma_relation = models.CharField(max_length=100, blank=True)
+
+    # Uploaded separately from the JSON participant sync, after the participant exists.
+    consent_form_photo = models.FileField(upload_to=consent_form_upload_path, blank=True)
+    consent_form_checksum_sha256 = models.CharField(max_length=64, blank=True, null=True)
+    consent_form_uploaded_at = models.DateTimeField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

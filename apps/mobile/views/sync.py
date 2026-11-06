@@ -3,6 +3,7 @@ import logging
 import wave
 
 from django.db import transaction, IntegrityError
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,6 +11,7 @@ from apps.mobile.auth import CsrfExemptSessionAuthentication
 from apps.mobile.models import Participant, ClinicalData, ClinicalMedication, CoughRecording
 from apps.mobile.serializers import (
     ParticipantSyncSerializer,
+    ConsentFormSyncSerializer,
     ClinicalDataSyncSerializer,
     ClinicalMedicationsSyncSerializer,
     CoughRecordingSyncSerializer,
@@ -154,6 +156,93 @@ class SyncParticipantView(APIView):
         _log(request, "Participant synced id=%d pid=%s", participant.pk, participant.generated_participant_id)
 
         return Response(_participant_response(participant), status=status.HTTP_201_CREATED)
+
+
+def _sha256(uploaded_file):
+    uploaded_file.seek(0)
+    digest = hashlib.sha256()
+    for chunk in uploaded_file.chunks():
+        digest.update(chunk)
+    uploaded_file.seek(0)
+    return digest.hexdigest()
+
+
+def _consent_form_response(participant, message):
+    return {
+        "success": True,
+        "message": message,
+        "data": {
+            "participant": {
+                "id": participant.pk,
+                "server_id": participant.pk,
+                "participant_id": participant.generated_participant_id,
+                "consent_form_checksum_sha256": participant.consent_form_checksum_sha256,
+            }
+        },
+    }
+
+
+class SyncConsentFormView(APIView):
+    authentication_classes = [CsrfExemptSessionAuthentication]
+
+    def post(self, request):
+        # Pass request.data straight through; see SyncCoughRecordingView.
+        serializer = ConsentFormSyncSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"success": False, "message": "Validation failed.", "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = serializer.validated_data
+        participant_server_id = data.get("participant_server_id")
+        participant_id_str = data.get("participant_id")
+        photo = data["consent_form_photo"]
+        checksum = _sha256(photo)
+
+        with transaction.atomic():
+            queryset = Participant.objects.select_for_update()
+            participant = None
+            if participant_server_id:
+                participant = queryset.filter(pk=participant_server_id).first()
+            if participant is None and participant_id_str:
+                participant = queryset.filter(generated_participant_id=participant_id_str).first()
+
+            if participant is None:
+                return Response(
+                    {
+                        "success": False,
+                        "message": "Participant not found.",
+                        "errors": {"participant_server_id": ["Participant not found."]},
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Idempotency: a retry of the same image is a no-op.
+            if participant.consent_form_photo and participant.consent_form_checksum_sha256 == checksum:
+                _log(request, "Consent form already uploaded participant=%d", participant.pk)
+                return Response(_consent_form_response(participant, "Consent form already uploaded."))
+
+            old_photo_name = participant.consent_form_photo.name if participant.consent_form_photo else None
+            participant.consent_form_photo = photo
+            participant.consent_form_checksum_sha256 = checksum
+            participant.consent_form_uploaded_at = timezone.now()
+            participant.save(update_fields=[
+                "consent_form_photo",
+                "consent_form_checksum_sha256",
+                "consent_form_uploaded_at",
+                "updated_at",
+            ])
+
+        if old_photo_name and old_photo_name != participant.consent_form_photo.name:
+            participant.consent_form_photo.storage.delete(old_photo_name)
+
+        _log(request, "Consent form uploaded participant=%d", participant.pk)
+
+        return Response(
+            _consent_form_response(participant, "Consent form uploaded successfully."),
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class SyncClinicalDataView(APIView):

@@ -41,6 +41,32 @@ class ParticipantSyncSerializer(serializers.Serializer):
     asthma_relation = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
 
+class ConsentFormSyncSerializer(serializers.Serializer):
+    participant_server_id = serializers.IntegerField(required=False, allow_null=True)
+    participant_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    consent_form_photo = serializers.FileField()
+
+    def validate_consent_form_photo(self, value):
+        if value.size == 0:
+            raise serializers.ValidationError("The consent form photo is empty.")
+        if value.size > 10_485_760:
+            raise serializers.ValidationError("Consent form photo exceeds the 10 MB limit.")
+        # Check magic bytes rather than trusting the filename or content type.
+        value.seek(0)
+        header = value.read(8)
+        value.seek(0)
+        if not (header.startswith(b"\xff\xd8\xff") or header.startswith(b"\x89PNG\r\n\x1a\n")):
+            raise serializers.ValidationError("Only JPEG or PNG images are accepted.")
+        return value
+
+    def validate(self, data):
+        if not data.get("participant_server_id") and not data.get("participant_id"):
+            raise serializers.ValidationError(
+                "Either participant_server_id or participant_id is required."
+            )
+        return data
+
+
 class ClinicalDataSyncSerializer(serializers.Serializer):
     local_uuid = serializers.CharField(max_length=36)
     participant_server_id = serializers.IntegerField()

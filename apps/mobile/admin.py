@@ -25,7 +25,10 @@ class ParticipantAdmin(admin.ModelAdmin):
     )
     list_filter = ("site_code", "participant_type", "sex", "region")
     search_fields = ("generated_participant_id", "local_uuid", "phone_number")
-    readonly_fields = ("local_uuid", "generated_participant_id", "created_at", "updated_at")
+    readonly_fields = (
+        "local_uuid", "generated_participant_id", "created_at", "updated_at",
+        "consent_form_checksum_sha256", "consent_form_uploaded_at",
+    )
     inlines = [ClinicalDataInline, CoughRecordingInline]
 
     fieldsets = (
@@ -34,6 +37,9 @@ class ParticipantAdmin(admin.ModelAdmin):
         }),
         ("Enrolment", {
             "fields": ("site_code", "participant_type", "date_of_recruitment"),
+        }),
+        ("Consent", {
+            "fields": ("consent_form_photo", "consent_form_checksum_sha256", "consent_form_uploaded_at"),
         }),
         ("Demographics", {
             "fields": ("year_of_birth", "sex", "region", "district", "ward", "street", "phone_number"),
